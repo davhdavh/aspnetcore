@@ -143,10 +143,12 @@ namespace Microsoft.AspNetCore.Components.WebAssembly.Authentication
         }
 
         /// <inheritdoc />
-        public virtual async ValueTask<AccessTokenResult> RequestAccessToken()
+        public async ValueTask<AccessTokenResult> RequestAccessTokenInner(AccessTokenRequestOptions options)
         {
             await EnsureAuthService();
-            var result = await JsRuntime.InvokeAsync<InternalAccessTokenResult>("AuthenticationService.getAccessToken");
+            var result = await options == null
+                    ? JsRuntime.InvokeAsync<InternalAccessTokenResult>("AuthenticationService.getAccessToken")
+                    : JsRuntime.InvokeAsync<InternalAccessTokenResult>("AuthenticationService.getAccessToken", options);
 
             if (!Enum.TryParse<AccessTokenResultStatus>(result.Status, ignoreCase: true, out var parsedStatus))
             {
@@ -163,29 +165,10 @@ namespace Microsoft.AspNetCore.Components.WebAssembly.Authentication
         }
 
         /// <inheritdoc />
-        public virtual async ValueTask<AccessTokenResult> RequestAccessToken(AccessTokenRequestOptions options)
-        {
-            if (options is null)
-            {
-                throw new ArgumentNullException(nameof(options));
-            }
+        public virtual async ValueTask<AccessTokenResult> RequestAccessToken() => RequestAccessTokenInner(null);
 
-            await EnsureAuthService();
-            var result = await JsRuntime.InvokeAsync<InternalAccessTokenResult>("AuthenticationService.getAccessToken", options);
-
-            if (!Enum.TryParse<AccessTokenResultStatus>(result.Status, ignoreCase: true, out var parsedStatus))
-            {
-                throw new InvalidOperationException($"Invalid access token result status '{result.Status ?? "(null)"}'");
-            }
-
-            if (parsedStatus == AccessTokenResultStatus.RequiresRedirect)
-            {
-                var redirectUrl = GetRedirectUrl(options.ReturnUrl);
-                result.RedirectUrl = redirectUrl.ToString();
-            }
-
-            return new AccessTokenResult(parsedStatus, result.Token, result.RedirectUrl);
-        }
+        /// <inheritdoc />
+        public virtual async ValueTask<AccessTokenResult> RequestAccessToken(AccessTokenRequestOptions options) => RequestAccessTokenInner(options ?? throw new ArgumentNullException(nameof(options)));
 
         private Uri GetRedirectUrl(string customReturnUrl)
         {
